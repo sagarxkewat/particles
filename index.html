@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Particle by Sagarithm</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(138, 43, 226, 0.2);
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 16px;
+            padding: 10px 15px;
+            outline: none;
+            width: 200px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #8A2BE2, #4B0082);
+            border: none;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            box-shadow: 0 0 15px #8A2BE2;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-container">
+        <input type="text" id="textInput" value="Sagarithm" placeholder="Enter text...">
+        <button id="morphBtn">Create</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        camera.position.z = 100;
+
+        const PARTICLE_SIZE = 0.6;
+        const PARTICLE_COLOR = 0xbb88ff;
+        const AMOUNT_X = 150;
+        const AMOUNT_Y = 150;
+        let particles;
+        let particleGeometry;
+
+        let spherePositions = [];
+        let textPositions = [];
+        let currentShape = 'sphere';
+
+        function initParticles(count) {
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+
+            for (let i = 0; i < count * 3; i++) {
+                positions[i] = (Math.random() - 0.5) * 100;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const material = new THREE.PointsMaterial({
+                color: PARTICLE_COLOR,
+                size: PARTICLE_SIZE,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+            particleGeometry = geometry;
+        }
+
+        function calculateSpherePositions(count) {
+            const positions = [];
+            const radius = 40;
+
+            for (let i = 0; i < count; i++) {
+                const phi = Math.acos(-1 + (2 * i) / count);
+                const theta = Math.sqrt(count * Math.PI) * phi;
+
+                const x = radius * Math.cos(theta) * Math.sin(phi);
+                const y = radius * Math.sin(theta) * Math.sin(phi);
+                const z = radius * Math.cos(phi);
+
+                positions.push(x, y, z);
+            }
+            return positions;
+        }
+
+        function calculateTextPositions(text, maxParticles) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const width = 400;
+            const height = 100;
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, width, height);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 60px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, width / 2, height / 2);
+
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            const coords = [];
+            for (let y = 0; y < height; y += 2) {
+                for (let x = 0; x < width; x += 2) {
+                    const index = (y * width + x) * 4;
+                    const brightness = data[index];
+
+                    if (brightness > 128) {
+                        const pX = (x - width / 2) * 0.5;
+                        const pY = -(y - height / 2) * 0.5;
+                        const pZ = (Math.random() - 0.5) * 2;
+                        coords.push(pX, pY, pZ);
+                    }
+                }
+            }
+            return coords;
+        }
+
+        const TOTAL_PARTICLES = 15000;
+        initParticles(TOTAL_PARTICLES);
+
+        spherePositions = calculateSpherePositions(TOTAL_PARTICLES);
+        let targetPositions = spherePositions;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const positions = particleGeometry.attributes.position.array;
+
+            const ease = 0.05;
+
+            for (let i = 0; i < TOTAL_PARTICLES; i++) {
+                const ix = i * 3;
+                const iy = i * 3 + 1;
+                const iz = i * 3 + 2;
+
+                const tx = targetPositions[ix] || 0;
+                const ty = targetPositions[iy] || 0;
+                const tz = targetPositions[iz] || 0;
+
+                positions[ix] += (tx - positions[ix]) * ease;
+                positions[iy] += (ty - positions[iy]) * ease;
+                positions[iz] += (tz - positions[iz]) * ease;
+            }
+
+            particleGeometry.attributes.position.needsUpdate = true;
+
+            particles.rotation.y += 0.005;
+
+            particles.rotation.x += 0.001;
+
+            renderer.render(scene, camera);
+        }
+
+        const btn = document.getElementById('morphBtn');
+        const input = document.getElementById('textInput');
+
+        btn.addEventListener('click', () => {
+            if (currentShape === 'sphere') {
+                const text = input.value.toUpperCase();
+                const textCoords = calculateTextPositions(text, TOTAL_PARTICLES);
+
+                const newTargets = [];
+                for (let i = 0; i < TOTAL_PARTICLES; i++) {
+                    if (i < textCoords.length / 3) {
+                        newTargets.push(textCoords[i * 3], textCoords[i * 3 + 1], textCoords[i * 3 + 2]);
+                    } else {
+                        newTargets.push((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
+                    }
+                }
+                targetPositions = newTargets;
+                currentShape = 'text';
+                btn.innerText = "Reset";
+            } else {
+                targetPositions = spherePositions;
+                currentShape = 'sphere';
+                btn.innerText = "Create";
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+
+</html>
